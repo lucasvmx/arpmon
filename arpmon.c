@@ -59,8 +59,9 @@ typedef enum AddressTypes {
 static char *addr_to_string(u_char *address, size_t len, AddrTypes address_type)
 {
 	char *addr = NULL;
-
-	addr = (char*)malloc(len * sizeof(char));
+	size_t amount = sizeof(char) * ((address_type == MAC_ADDR) ? MAC_STR_MAX_LEN : IPV4_STR_MAX_LEN);
+	
+	addr = (char*)malloc(amount);
 	if(!addr) {
 		printf("Failed to allocate memory!\n");
 		exit(1);
@@ -145,7 +146,6 @@ int main(int argc, char *argv[])
 		if(ntohs(arpheader->htype) == 1 && ntohs(arpheader->ptype) == 0x0800)
 		{
 			char *sender_ip, *sender_mac, *target_mac, *target_ip;
-			time_t t;
 			
 			sender_mac = addr_to_string(arpheader->sha, count(arpheader->sha), MAC_ADDR);
 			sender_ip = addr_to_string(arpheader->spa, count(arpheader->spa), IP_ADDR);
