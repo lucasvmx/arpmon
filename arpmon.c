@@ -131,6 +131,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	fprintf(stdout, "[+] Monitoring ARP requests ...\n");
+
 	while(1)
 	{
 		if((packet = pcap_next(descr, &pkthdr)) == NULL)
@@ -155,7 +157,7 @@ int main(int argc, char *argv[])
 			// Ignore requests from router
 			if(strncmp(sender_ip, gateway_ip, IPV4_STR_MAX_LEN) != 0)
 			{
-				printf("ARP packet from %s (%s) to %s (%s)\n", sender_mac, sender_ip, target_mac, target_ip);
+				fprintf(stdout, "ARP packet from %s (%s) to %s (%s)\n", sender_mac, sender_ip, target_mac, target_ip);
 			}
 
 			// Free memory used
