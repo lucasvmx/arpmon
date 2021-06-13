@@ -15,29 +15,19 @@ typedef unsigned int u_int;
 typedef unsigned short u_short;
 
 #include <stdlib.h> 
+#include <stdio.h>
 #include <string.h> 
 #include <stdint.h>
 #include <sys/types.h>
 #include <pcap.h>
 #include <time.h>
 #include <strings.h>
+#include <errno.h>
+#include <json-c/json.h>
 
 /* ARP Header, (assuming Ethernet+IPv4)            */ 
 #define ARP_REQUEST 1   /* ARP Request             */ 
 #define ARP_REPLY 2     /* ARP Reply               */ 
-typedef struct arphdr { 
-    u_int16_t htype;    /* Hardware Type           */ 
-    u_int16_t ptype;    /* Protocol Type           */ 
-    u_char hlen;        /* Hardware Address Length */ 
-    u_char plen;        /* Protocol Address Length */ 
-    u_int16_t oper;     /* Operation Code          */ 
-    u_char sha[6];      /* Sender hardware address */ 
-    u_char spa[4];      /* Sender IP address       */ 
-    u_char tha[6];      /* Target hardware address */ 
-    u_char tpa[4];      /* Target IP address       */ 
-}arphdr_t; 
-
-#define count(x) (sizeof(x)/sizeof(x[0]))
 
 // Maximum bytes to capture
 #define MAXBYTES2CAPTURE 2048 
@@ -50,6 +40,37 @@ typedef struct arphdr {
 
 // Maximum size of MAC address in chars
 #define MAC_STR_MAX_LEN 18
+
+// Maximum size of a name to the host
+#define MAX_NAME_SZ 256
+
+// Filename that contains macaddresses map to machine names
+#define MACHINE_DATA_FILE	"machines.json"
+
+typedef struct arphdr { 
+    u_int16_t htype;    /* Hardware Type           */ 
+    u_int16_t ptype;    /* Protocol Type           */ 
+    u_char hlen;        /* Hardware Address Length */ 
+    u_char plen;        /* Protocol Address Length */ 
+    u_int16_t oper;     /* Operation Code          */ 
+    u_char sha[6];      /* Sender hardware address */ 
+    u_char spa[4];      /* Sender IP address       */ 
+    u_char tha[6];      /* Target hardware address */ 
+    u_char tpa[4];      /* Target IP address       */ 
+}arphdr_t; 
+
+
+typedef struct machine_info {
+	char mac[MAC_STR_MAX_LEN];
+	char name[MAX_NAME_SZ];
+} machine_info_t;
+
+// Contains information about all mapped machines
+machine_info_t machineInfo[UINT8_MAX + 1];
+
+#define count(x) (sizeof(x)/sizeof(x[0]))
+
+
 
 typedef enum AddressTypes {
 	MAC_ADDR,
@@ -83,6 +104,40 @@ static char *addr_to_string(u_char *address, size_t len, AddrTypes address_type)
 	return addr;
 }
 
+void read_identifications()
+{
+	struct json_object *parsed_json = json_object_from_file(MACHINE_DATA_FILE);
+
+	if(parsed_json == NULL) {
+		fprintf(stdout, "[ERROR] Failed to parse JSON!\n");
+		exit(1);
+	}
+
+	printf("[INFO] Reading configuration ...\n");
+	
+	struct json_object *machines_arr = json_object_object_get(parsed_json, "machines");
+	size_t machines_cnt = json_object_array_length(machines_arr);
+
+	printf("[INFO] %d machines detected\n", machines_cnt);
+
+	for(size_t i = 0; i < machines_cnt; i++) 
+	{
+		json_object *machine, *name, *mac;
+		
+		machine = json_object_array_get_idx(machines_arr, i);
+		name = json_object_object_get(machine, "name");
+		mac = json_object_object_get(machine, "mac");
+
+		const char *m_name = json_object_get_string(name);
+		const char *m_mac = json_object_get_string(mac);
+
+		strncpy(machineInfo[i].name, m_name, sizeof(machineInfo[i].name) / sizeof(char));
+		strncpy(machineInfo[i].mac, m_mac, sizeof(machineInfo[i].mac) / sizeof(char));
+
+		printf("[INFO] %s is mapped to %s\n", machineInfo[i].mac, machineInfo[i].name);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int i = 0; 
@@ -103,6 +158,9 @@ int main(int argc, char *argv[])
 		printf("\tgateway IPV4: address of the gateway for current network\n\n");
 		exit(1); 
 	}
+
+	// Parse machine identifications
+	read_identifications();
 
 	// Save IP address
 	strncpy(gateway_ip, argv[2], IPV4_STR_MAX_LEN);
