@@ -24,8 +24,10 @@ if getuid() != 0:
     exit(5)
 
 service_file_path = f'/etc/systemd/system/{service_name}.service'
+print(f"[*] Installing service to {service_file_path}")
+
 if exists(service_file_path):
-    print(f"[!] Service already installed at: {service_file_path}")
+    print(f"[!] Service already installed.")
     exit(0)
 
 ip = input("Install path: ")
