@@ -24,6 +24,7 @@ typedef unsigned short u_short;
 #include <strings.h>
 #include <errno.h>
 #include <json-c/json.h>
+#include <ctype.h>
 
 /* ARP Header, (assuming Ethernet+IPv4)            */ 
 #define ARP_REQUEST 1   /* ARP Request             */ 
@@ -94,7 +95,7 @@ static char *addr_to_string(u_char *address, size_t len, AddrTypes address_type)
 	if(address_type == IP_ADDR) {
 		snprintf(addr, IPV4_STR_MAX_LEN, "%d.%d.%d.%d", address[0], address[1], address[2], address[3]);
 	} else if(address_type == MAC_ADDR) {
-		snprintf(addr, MAC_STR_MAX_LEN, "%.2X:%.2X:%.2X:%.2X:%.2X:%.2X", address[0], address[1], address[2], address[3], address[4], address[5]);
+		snprintf(addr, MAC_STR_MAX_LEN, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", address[0], address[1], address[2], address[3], address[4], address[5]);
 	} else {
 		free(addr);
 		return NULL;
@@ -104,7 +105,14 @@ static char *addr_to_string(u_char *address, size_t len, AddrTypes address_type)
 	return addr;
 }
 
-void read_identifications()
+char *strlwr(char *s)
+{
+	for(char *p=s; *p; p++) *p=tolower(*p);
+
+  	return s;
+}
+
+static void read_identifications()
 {
 	struct json_object *parsed_json = json_object_from_file(MACHINE_DATA_FILE);
 
@@ -138,6 +146,18 @@ void read_identifications()
 	}
 }
 
+static char *find_device_name(const char *mac)
+{
+	for(int i = 0; i < count(machineInfo); i++)
+	{
+		if(strncasecmp(mac, machineInfo[i].mac, MAC_STR_MAX_LEN) == 0) {
+			return &machineInfo[i].name[0];
+		}
+	}
+
+	return NULL;
+}
+
 int main(int argc, char *argv[])
 {
 	int i = 0; 
@@ -149,7 +169,7 @@ int main(int argc, char *argv[])
 	const unsigned char *packet=NULL; /* Received raw data                      */ 
 	arphdr_t *arpheader = NULL;       /* Pointer to the ARP header              */
 	char gateway_ip[IPV4_STR_MAX_LEN];
-
+	
 	memset(errbuf, 0, PCAP_ERRBUF_SIZE); 
 
 	if (argc != 3){ 
@@ -215,7 +235,17 @@ int main(int argc, char *argv[])
 			// Ignore requests from router
 			if(strncmp(sender_ip, gateway_ip, IPV4_STR_MAX_LEN) != 0)
 			{
-				fprintf(stdout, "ARP packet from %s (%s) to %s (%s)\n", sender_mac, sender_ip, target_mac, target_ip);
+				char *sender_name, *target_name;
+
+				sender_name = find_device_name(sender_mac);
+				target_name = find_device_name(target_mac);
+
+				fprintf(stdout, "ARP packet from: %s (%s, %s) to %s (%s, %s)\n", sender_mac, 
+				sender_ip, 
+				sender_name == NULL ? "Desconhecido" : sender_name,
+				target_mac,
+				target_ip,
+				target_name == NULL ? "Desconhecido" : target_name);
 			}
 
 			// Free memory used
